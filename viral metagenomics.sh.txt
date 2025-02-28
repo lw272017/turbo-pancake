@@ -1,0 +1,57 @@
+#step1
+#!/bin/bash
+
+source /home/sq/Softwares/anaconda3/etc/profile.d/conda.sh
+
+conda activate trim-galore
+
+####更改为原始数据存放的目录
+cd /storage/data2/wj/20231227/raw
+ls|grep _R1.fq.gz>gz1
+ls|grep _R2.fq.gz>gz2
+paste gz1 gz2>config
+cat config|head
+
+
+####更改为trim后文件的目录
+outdir=/storage/data2/wj/20231227/clean
+cat config |while read id
+do
+      arr=${id}
+      fq1=${arr[0]}
+      fq2=${arr[1]}
+      trim_galore -j 40 -q 25 --phred33 --length 50 --stringency 3 --no_report_file --paired --gzip -o $outdir $fq1 $fq2&
+done
+
+
+#step2
+for i in *_val_*.fq.gz
+do 
+read1=${i}
+read2=${read1/_1_val_1.fq.gz/_2_val_2.fq.gz}
+megahit -1 $read1  -2 $read2 -o ${i/.*.fq.gz/} --out-prefix ${i/.*.fq.gz/}  --min-contig-len 500
+done
+
+
+#step3
+#!/bin/bash
+source /home/sq/Softwares/anaconda3/etc/profile.d/conda.sh
+conda activate Metagenomes-tools
+indir=/storage/data2/wj/20231227/clean
+cd /storage/data2/wj/20231227/daa
+
+
+for i in ${indir}/*.gz
+do diamond blastx -d /storage/data1/database/nr/nr_full.dmnd -q ${i} -e 1e-5 -f 100 -k 25 -b 20 -o ${i}.daa
+done
+
+
+
+#step4
+#conda activate Megan
+
+BM_samples="xx2.contigs.fa	xx1.contigs.fa	"
+for s in ${BM_samples}
+do
+/home/sq/Softwares/anaconda3/envs/Megan/bin/daa2rma -i ${s} -ms 50 -me 0.01 -top 10 -sup 11 -mdb  /storage/data1/database/megan-map-Feb2022.db -o ${s}.rma6
+done
