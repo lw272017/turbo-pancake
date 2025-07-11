@@ -5,7 +5,7 @@ source /home/sq/Softwares/anaconda3/etc/profile.d/conda.sh
 
 conda activate trim-galore
 
-####更改为原始数据存放的目录
+####change dir
 cd /storage/data2/wj/20231227/raw
 ls|grep _R1.fq.gz>gz1
 ls|grep _R2.fq.gz>gz2
@@ -13,7 +13,7 @@ paste gz1 gz2>config
 cat config|head
 
 
-####更改为trim后文件的目录
+#### trimed files
 outdir=/storage/data2/wj/20231227/clean
 cat config |while read id
 do
