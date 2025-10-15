@@ -1,0 +1,520 @@
+1. Alpha diversity
+```{r alpha data prepare, warning= FALSE}
+shannon <- diversity(input_m.df, index = "shannon")
+simpson <- diversity(input_m.df, index = "simpson")
+invsimpson <- diversity(input_m.df, index = "invsimpson")
+data_shannon = data.frame(shannon)
+data_simpson = data.frame(simpson)
+data_invsimpson = data.frame(invsimpson)
+
+
+spe_alpha.df <- cbind(
+  data_shannon,
+  data_simpson,
+  data_invsimpson,
+  group.df 
+)
+comparison.ls <- list(c("Ca_Tx1", "Ca_Tx2"), c("Control", "Ca_Tx1"), c("Control", "Ca_Tx2")) 
+```
+
+```{r plot alpha diversity, echo=FALSE}
+p1 = ggplot(spe_alpha.df,aes(x = group, y = shannon, fill = group))+
+  geom_boxplot()+ 
+  labs(title="",  x="Group", y="Shannon index")+ 
+  theme_bw() +
+  # scale_fill_manual(values = set_color_scheme(length(unique(spe_alpha.df$group)))) +
+  scale_fill_manual(values = brewer.pal(length(unique(spe_alpha.df$group)), "Set3")) +
+  
+  theme(panel.grid.major = element_blank(),  
+        panel.grid.minor = element_blank(),  
+        axis.text.x = element_text(angle = 30, hjust = 1,vjust = 1))+
+  stat_compare_means(comparisons = comparison.ls, label = "p",size=5)+# label = "p.signif"
+  geom_jitter(position = position_jitter(0.17), size = 1, alpha = 0.7)
+
+p1
+
+p2 = ggplot(spe_alpha.df,aes(x = group, y = simpson, fill = group))+
+  geom_boxplot()
+  labs(title="",  x="Group", y="Simpson index")+ 
+  theme_bw() +
+  # scale_fill_manual(values = set_color_scheme(length(unique(spe_alpha.df$group)))) +
+  scale_fill_manual(values = brewer.pal(length(unique(spe_alpha.df$group)), "Set1")) +
+  theme(panel.grid.major = element_blank(),  
+        panel.grid.minor = element_blank(),  
+        axis.text.x = element_text(angle = 30, hjust = 1,vjust = 1))+
+  stat_compare_means(comparisons = comparison.ls, label = "p",size=5)+# label = "p.signif"
+  geom_jitter(position = position_jitter(0.17), size = 1, alpha = 0.7)
+
+p2
+
+p3 = ggplot(spe_alpha.df,aes(x = group, y = invsimpson, fill = group))+
+  geom_boxplot()
+  labs(title="",  x="Group", y="Invsimpson index")+ 
+  theme_bw() +
+  # scale_fill_manual(values = set_color_scheme(length(unique(spe_alpha.df$group)))) +
+  scale_fill_manual(values = brewer.pal(length(unique(spe_alpha.df$group)), "Set1")) +
+  theme(panel.grid.major = element_blank(),  
+        panel.grid.minor = element_blank(),  
+        axis.text.x = element_text(angle = 30, hjust = 1,vjust = 1))+
+  stat_compare_means(comparisons = comparison.ls, label = "p",size=5)+# label = "p.signif"
+  geom_jitter(position = position_jitter(0.17), size = 1, alpha = 0.7)
+
+p3
+
+library("gridExtra")
+library("cowplot")
+plot_grid(p1, p2, p3, ncol = 3)
+ggsave('Alpha.each_1.png',width=8.9,height = 5.9,dpi = 600)
+
+# 宽数据转为长数据
+spe_combined.df <- reshape2::melt(spe_alpha.df, id = c('sample','group'))
+
+p4 = ggplot(spe_combined.df,aes(x = group, y = value, fill = group))+
+  geom_boxplot()
+  labs(title="", x="Group", y="Alpha index")+ 
+  theme_bw() +
+  # scale_fill_manual(values = set_color_scheme(length(unique(spe_alpha.df$group)))) +
+  scale_fill_manual(values = brewer.pal(length(unique(spe_alpha.df$group)), "Set2")) +
+  theme(panel.grid.major = element_blank(),  
+        panel.grid.minor = element_blank(),  
+        axis.text.x = element_text(angle = 30, hjust = 1,vjust = 1))+
+  facet_wrap(~ variable, scales = "free_y") +
+  stat_compare_means(comparisons = comparison.ls, label = "p")+# label = "p.signif"
+  geom_jitter(position = position_jitter(0.17), size = 1, alpha = 0.7)
+
+p4
+
+ggsave('spe_alpha.df.png',plot = p4,width = 8.9, height = 5.9,dpi = 300)
+ggsave('spe_alpha.df.pdf',plot = p4,width = 8.9, height = 5.9,dpi = 300)
+
+2. Beta diversity
+bray <- vegdist(input_m.df, method = 'bray')
+bray <- as.matrix(bray)
+write.table(bray,"bray-crutis2.txt",sep = "\t") 
+pcoa <- cmdscale(bray, k = 3, eig = T)
+pcoa_data <- data.frame({pcoa$point})
+pcoa_data$Sample_ID <- rownames(pcoa_data)
+names(pcoa_data)[1:3] <- paste0("PCoA", 1:3)
+eig = pcoa$eig
+eig_percent <- round(pcoa$eig/sum(pcoa$eig) * 100, 1)
+poi = pcoa$points
+poi = as.data.frame(poi)
+pcoa_result <- cbind(pcoa_data,group.df ) 
+head(pcoa_result)
+dune.div <- adonis2(input_m.df ~ group, data = group.df, permutations = 9999, method="bray")
+dune.div
+dune_adonis <- paste0("adonis R2: ",round(dune.div$R2,2), "; P-value: ", dune.div$`Pr(>F)`)
+dune_adonis
+pcoa_result$group <- as.factor(pcoa_result$group)
+p <- ggplot(pcoa_result, aes(x=PCoA1, y=PCoA2, color=group)) +
+  geom_point(aes(shape=group), size=4) +
+  labs(x=paste("PCoA 1 (", eig_percent[1], "%)", sep=""),
+       y=paste("PCoA 2 (", eig_percent[2], "%)", sep=""),
+       caption = dune_adonis) +
+  scale_colour_manual(values = c("Ca_Tx1" = "#D55E00","Ca_Tx2" = "#28B36B", "Control" = "#6a51a3")) +
+  scale_shape_manual(values = c("Ca_Tx1" = 7,"Ca_Tx2" = 6,"Control" = 10)) +
+  theme(legend.position = c(0.15, 0.90),
+        legend.title = element_blank(),
+        panel.grid = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(color = 'black', fill = 'transparent'),
+        axis.text = element_text(color = "black", size = 10)) +
+  geom_hline(aes(yintercept=0), colour="black", linetype="dashed") +
+  geom_vline(aes(xintercept=0), colour="black", linetype="dashed")
+
+p1 <- p + stat_ellipse(data=pcoa_result, 
+                       geom = "polygon", 
+                       level=0.9, 
+                       linetype = 1, 
+                       linewidth=0.8, 
+                       aes(fill=group), 
+                       alpha=0.3, 
+                       show.legend = TRUE) +
+  scale_fill_manual(values = c("Ca_Tx1" = "#FFC8B4","Ca_Tx2" = "#28b3b6","Control" = "#ccccFF"))
+
+print(p1)
+
+#install.packages("ggExtra") 
+library(ggExtra)
+png(file="bray_pcoa.png", width=5, height=5, res=600, units="in") 
+pdf('marginal.pdf',width = 7.5,height = 7.5)
+ggMarginal(p1,type =c('density'),margins = 'both', size = 3.5, groupColour = F,groupFill = T) 
+dev.off()
+
+3. upset
+rm(list=ls())
+library(UpSetR)
+setwd("D:/gastric/data")
+data <- read.table("species_feces_normalized.tsv", header = TRUE, sep = "\t", row.names = 1)
+data$Control <- apply(data[, 1:9], 1, mean)
+data$Ca_Tx1 <- apply(data[, 9:18], 1, mean)
+data$Ca_Tx2 <- apply(data[, 19:26], 1, mean)
+data1 <- data[, c("Control", "Ca_Tx1", "Ca_Tx2")]
+data1[data1 > 0] <- 1
+p<- upset(data1,nsets = 3,order.by = "freq",sets = colnames(data1),
+queries = list(
+   list(query = UpSetR::intersects, params = list(set = c("Control", "Ca_Tx1", "Ca_Tx2")), color = "#333333", active = TRUE),
+             list(query = UpSetR::intersects, params = list(set = c("Control", "Ca_Tx1")), color = "#BD6263", active = TRUE),
+             list(query = UpSetR::intersects, params = list(set = c("Control", "Ca_Tx2")), color = "#BD6263", active = TRUE),
+             list(query = UpSetR::intersects, params = list(set = c("Ca_Tx1", "Ca_Tx2")), color = "#BD6263", active = TRUE),
+             list(query = UpSetR::intersects, params = list(set = c("Ca_Tx1")), color = "#0f6657", active = TRUE)
+           ),
+number.angles = 0,
+point.size = 4,
+line.size = 1,
+mainbar.y.label = "Intersection size",
+main.bar.color = 'black',
+sets.bar.color = c("#c74732","#edae11","#0f6657"),
+sets.x.label = "set size",
+mb.ratio = c(0.7, 0.3),
+text.scale = c(1.5, 1.5, 1.5, 1.5, 1.5, 2.0),
+shade.color = "#b0b9b8"
+)
+p
+
+dir.create("D/data")
+pdf(file = "D:/data/upset.pdf", width=7,height=5.1)
+
+p
+dev.off()
+
+  
+4.  single sample stacked
+library(reshape2)
+library(ggplot2)
+library(ggalluvial)
+library(ggh4x)
+setwd("D:/data")
+data <- read.table("family_feces_normalized.tsv", header = T, sep = "\t", row.names = 1)
+data$sum <- rowSums(data)
+data1 <- data[order(data$sum, decreasing = TRUE), ]
+data1 <- data1[, -which(names(data1) == "sum")]
+# data2 <- data1[1:20, ] / apply(data1, 2, sum)
+column_sums <- apply(data1, 2, sum)
+data2<- sweep(data1[1:20,], 2, column_sums, FUN = "/")
+data3 <- 1 - apply(data2, 2, sum)
+data3 <- rbind(data2, data3)
+rownames(data3)[nrow(data3)] <- "Others"
+data3$Taxonomy <- factor(rownames(data3), levels = rev(rownames(data3)))
+data4 <- melt(data3, id = "Taxonomy")
+#group <- read.delim('swab_group.tsv', sep = '\t', stringsAsFactors = FALSE)
+#names(group)[1] <- 'variable'
+#data4 <- merge(data4, group, by = 'variable')
+p1 <- ggplot(data4, aes(x=variable, y=value*100, fill = Taxonomy)) +
+  geom_col(position = 'stack', width = 0.6)+  
+  scale_y_continuous(expand=c(0, 0))
+  scale_fill_manual(values =  rev(c("#B2182B","#E69F00","#56B4E9","#009E73","#F0E442",
+                                    "#0072B2","#D55E00","#CC79A7","#CC6666",
+                                    "#9999CC","#66CC99","#3C5488B2","#00A087B2", 
+                                    "#F39B7FB2","#91D1C2B2", 
+                                    "#8491B4B2", "#6a51a3", 
+                                    "#7E6148B2","green", 
+                                    "darkolivegreen1", "lightskyblue"))) 
+  
+  labs(x = 'Samples', y = 'Relative Abundance(%)') 
+  theme(panel.grid = element_blank(), 
+        panel.background = element_rect(color = 'black', fill = 'transparent'), 
+        strip.text = element_text(size = 12)) + 
+ 
+  theme(axis.text.x=element_text(angle=45, hjust=1),axis.text = element_text(size = 12), 
+        axis.title = element_text(size = 13), legend.title = element_blank(), 
+        legend.text = element_text(size = 11),legend.position="bottom",
+        legend.key = element_rect(fill = NA, color = NA)) 
+p1 <- p1+guides(fill=guide_legend(ncol = 1,byrow = T,
+                                  override.aes = list(size = 4),
+                                  title.position = "top"))
+p1
+ggsave('single_sample_stackbar1.pdf',plot = p1,width = 10, height = 6,dpi = 300)
+p2<- ggplot(data4, aes(x=variable, y=value*100, fill = Taxonomy,
+                       stratum = Taxonomy, alluvium = Taxonomy)) +
+  geom_col(position = 'stack', width = 0.6)+  
+  geom_stratum(width = 0.6, color='white')+
+  geom_alluvium(alpha = 0.4,
+                width = 0.6,
+                color='white',
+                linewidth = 1,
+                curve_type = "linear")+
+  scale_y_continuous(expand=c(0, 0))+
+  scale_fill_manual(values =  rev(c("#B2182B","#E69F00","#56B4E9","#009E73","#F0E442",
+                                    "#0072B2","#D55E00","#CC79A7","#CC6666",
+                                    "#9999CC","#66CC99","#3C5488B2","#00A087B2", 
+                                    "#F39B7FB2","#91D1C2B2", 
+                                    "#8491B4B2", "#DC0077", 
+                                    "#7E6148B2","#6a51a3", 
+                                    "darkolivegreen1", "lightskyblue"))) + 
+
+  labs(x = 'Samples', y = 'Relative Abundance(%)') +
+  theme(panel.grid = element_blank(), 
+        panel.background = element_rect(color = 'black', fill = 'transparent'), 
+        strip.text = element_text(size = 12)) + 
+  theme(axis.text.x=element_text(angle=45, hjust=1),axis.text = element_text(size = 6), 
+        axis.title = element_text(size = 6), legend.title = element_blank(), 
+        legend.text = element_text(size = 6),legend.position="right",
+        legend.key = element_rect(fill = NA, color = NA)) 
+
+p2 <- p2+guides(fill=guide_legend(ncol = 1,byrow = T,
+                                  override.aes = list(size = 4),
+                                  title.position = "top"))
+p2
+
+ggsave('single_sample_stackbar.pdf',plot = p2,width = 10, height = 6,dpi = 300)
+# scales = 'free_x':每个分面的x轴尺度独立
+p3 <- p2 + facet_wrap(~group,scales = 'free_x', ncol = 3)+
+  theme(strip.text = element_text(color = "black", size = 12),# 自定义分面文本
+        strip.background = element_rect(color = "black", fill="grey90"))
+p3
+
+p4 <- p2 + 
+  facet_grid(
+    ~ group,             
+    scales = "free_x",   
+    space = "free_x"    
+  ) +
+  theme(
+    strip.text = element_text(color = "black", size = 12),      
+    strip.background = element_rect(color = "black", fill="grey90") 
+  )
+p4
+
+ggsave('single_sample_stackbar.png',plot = p4,width = 8.9, height = 5.9,dpi = 300)
+ggsave('single_sample_stackbar.pdf',plot = p4,width = 10, height = 6,dpi = 300)
+
+ 5. stacked_barplot(group)
+rm(list=ls())
+setwd("D:/data")
+library(reshape2)
+library(ggplot2)
+library(RColorBrewer)
+library(ggalluvial)
+library(ggh4x)
+data <- read.table("family_blood_normalized.tsv", header = TRUE, sep = "\t", row.names = 1)
+data$sum <- rowSums(data)
+data1 <- data[order(data$sum, decreasing = TRUE), ]
+data1 <- data1[, -which(names(data1) == "sum")]
+data1$Group1 <- apply(data1[, 1:10], 1, mean)
+data1$Group2 <- apply(data1[, 11:21], 1, mean)
+data1$Group3 <- apply(data1[, 22:30], 1, mean)
+data2 <- data1[, 31:33]
+column_sums <- apply(data2, 2, sum)
+data3<- sweep(data2[1:10,], 2, column_sums, FUN = "/")
+data4 <- 1 - apply(data3, 2, sum)
+data3 <- rbind(data3, data4)
+rownames(data3)[nrow(data3)] <- "Others"
+print(row.names(data3))
+print(colnames(data3))
+print(apply(data3, 2, sum))
+data3$Taxonomy <- factor(rownames(data3), levels = rev(rownames(data3)))
+data4 <- melt(data3, id = 'Taxonomy')
+brewer.pal.info
+display.brewer.all(type="qual")
+set_color_scheme <- function(n) {
+  return(RColorBrewer::brewer.pal(n, "Set3"))
+}
+num_colors <- length(unique(data4$Taxonomy))
+colors <- set_color_scheme(num_colors)
+p <- ggplot(data4, aes(x = variable, y = 100 * value, fill = Taxonomy)) +
+  geom_col(position = 'stack', width = 0.4) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_fill_manual(values = colors) + 
+  labs(x = 'Samples', y = 'Relative Abundance (%)') +
+  theme_minimal() +
+  theme(panel.grid = element_blank(), panel.background = element_rect(fill = 'transparent', color = 'black'),
+        strip.text = element_text(size = 8),
+        axis.text.x = element_text(angle = 45, hjust = 1), axis.text = element_text(size = 12),
+        axis.title = element_text(size = 13), legend.title = element_blank(),
+        legend.text = element_text(size = 11), legend.position = "right",
+        legend.key = element_rect(fill = NA, color = NA))
+print(p)
+ggsave("stacked_barplot.png", plot = p, width = 6, height = 4, dpi = 600)
+p <- ggplot(data4, aes(x = variable, y = 100 * value, fill = Taxonomy,
+                       stratum = Taxonomy, alluvium = Taxonomy)) +
+  geom_col(position = 'stack', width = 0.6) +
+  geom_stratum(width = 0.6, color='white')+
+  geom_alluvium(alpha = 0.4,
+                width = 0.6,
+                color='white',
+                linewidth = 1,
+                curve_type = "linear")+
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_fill_manual(values = set_color_scheme(length(unique(data4$Taxonomy)))) +
+  labs(x = 'Samples', y = 'Relative Abundance (%)') +
+  # theme_minimal() +
+  theme(panel.grid = element_blank(), panel.background = element_rect(fill = 'transparent', color = 'black'),
+        strip.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 45, hjust = 1), axis.text = element_text(size = 12),
+        axis.title = element_text(size = 13), legend.title = element_blank(), 
+        legend.text = element_text(size = 11), legend.position = "right",
+        legend.key = element_rect(fill = NA, color = NA))
+
+p
+print(p)
+ggsave("stacked_barplot_2.png", plot = p, width = 6, height = 4, dpi = 600)
+ggsave('group_stackbar.pdf',plot = p,width = 10, height = 6,dpi = 300) 
+
+6. Correlation Analysis（Spearman）
+rm(list = ls())
+library(psych)     
+library(ggraph)
+library(tidygraph)
+library(igraph)
+library(tidyverse)  
+setwd("D:/data")
+data <- read.table("cancer_feces_genus.tsv", header = T, sep = "\t", row.names = 1)
+data <- data / apply(data, 2, sum)
+data$sum <- rowSums(data)
+data1 <- data[order(data$sum, decreasing = TRUE), ] 
+data1 <- data1[, -which(names(data1) == "sum")]
+data2 <- data1[1:10, ] / apply(data1, 2, sum
+cor <- corr.test(df, method = "spearman", adjust = "fdr")
+r.cor <- data.frame(cor$r) 
+p.cor <- data.frame(cor$p) 
+r.cor[p.cor > 0.05] <- 0  
+r.cor$from = rownames(r.cor)
+p.cor$from = rownames(p.cor)
+p_value <- p.cor %>%
+  gather(key = "to", value = "p", -from) %>%
+  data.frame()
+edg <- r.cor %>%
+  gather(key = "to", value = "r", -from) %>%
+  data.frame() %>%
+  left_join(p_value, by = c("from", "to")) %>%
+  mutate(
+    linecolor = ifelse(r > 0.3, "positive", ifelse(r < -0.3, "negative", "neutral")),
+    linesize = abs(r)
+  ) %>%
+  filter(linesize > 0.3)  
+c(as.character(edg$from), as.character(edg$to)) %>%
+  as_tibble() %>%
+  group_by(value) %>%
+  summarize(n = n()) -> vertices
+colnames(vertices) <- c("name", "n")
+vertices <- vertices %>%
+  mutate(genus = name)  
+graph <- graph_from_data_frame(edg, vertices = vertices, directed = FALSE)
+graph <- as_tbl_graph(graph)
+V(graph)$degree <- degree(graph)
+unique(vertices$genus) 
+library(ggsci)
+library(scales)
+mycolor = pal_d3("category20",alpha = 1)(31)
+cols = mycolor
+color = c("positive" ="firebrick3","negative" ="navy")
+p <- ggraph(graph, layout = 'linear', circular = TRUE) +  
+  geom_edge_fan(aes(colour = r > 0, width = linesize)) +
+  scale_edge_width(range = c(0.1, 2)) + 
+  geom_node_point(aes(size = degree, color = genus)) +
+  scale_colour_manual(values = cols) +  
+  geom_node_text(aes(x = x, y = y, label = name)) + 
+  expand_limits(x = c(-1.5, 1.5), y = c(-1.5, 1.5)) + 
+  coord_fixed(clip = "off") + 
+  theme(panel.background = element_blank()) + 
+  labs(edge_colour = "Spearman's r")
+p
+ggsave("relative1.pdf", p, width = 5, height = 8)
+ggsave("relative1.png", p, width = 5, height = 8)
+
+6. sanyuan(composition)
+if (!requireNamespace("ggtern", quietly = TRUE)) {
+  install.packages('ggtern')
+}
+library(ggplot2)
+library(ggtern)
+library(reshape2)
+library(dplyr)  
+library(tibble) 
+setwd("D:/data")  
+data  <-  read.table("blood_zhenhe_genus_sanyuan.tsv",  header  =  TRUE,  sep  =  "\t",  row.names  =  1)
+data$sum  <-  rowSums(data)
+data1  <-  data[order(data$sum,  decreasing  =  TRUE),  ]
+data1  <-  data1[,  -which(names(data1) == "sum")]
+data1$control  <-  apply(data1[,  1:12],  1,  mean)
+data1$HIV_high  <-  apply(data1[,  13:16],  1,  mean)
+data1$HIV_low  <-  apply(data1[,  17:32],  1,  mean)
+data2  <-  data1[, 33:35]
+column_sums <- apply(data2, 2, sum)
+data3<- sweep(data2[1:10,], 2, column_sums, FUN = "/")
+data3$Abundance <- apply(data3[,1:3],1,mean)
+data4 <- data3[order(data3[,"Abundance"],decreasing = T),]
+data4 <- data3[1:10,]
+data4  <-  rownames_to_column(data4,  var  =  "Taxonomy")  
+Palette  <-  c("#9999CC","#CC6666","#CC79A7","#D55E00",  
+               "#0072B2","#F0E442","#009E73","#56B4E9",
+               "#E69F00","#B2182B")
+p1  <-  ggtern(data=data4,  aes(x=control,  y=HIV_high,  z=HIV_low))  +  
+  geom_mask()  +
+  geom_point(aes(size=Abundance,  color=Taxonomy),alpha=0.8)  +
+  scale_size(range  =  c(1, 10), name = "Abundance")  +  
+  scale_color_manual(values    =  Palette)  +
+  guides(size="legend")  +theme_bw()  +
+  theme(axis.text=element_blank(),axis.title  =  element_text(color='black',size=18,face  =  "bold"),
+        axis.ticks=element_blank())
+p1
+
+p2  <-  p1+theme(legend.text=element_text(size=6,face  =  "bold"),
+                 legend.position  =  "right")+
+  # 调整图例位置
+  guides(color=guide_legend(nrow  =10,
+                            override.aes  =  list(size  =  4),
+                            title.position  =  "top"))
+p2
+
+ggsave('sanyuan1.png',  p2,  width  =  8,  height  =4,dpi=600)
+ggsave('sanyuan1.pdf',p2,  width  =  8,  height  =5,dpi=600)
+
+7.  circos
+rm(list = ls())
+setwd("D:/data")
+library(ggplot2)
+library(RColorBrewer)
+library(circlize)  
+library(ggsci)
+data <- read.table("family_feces_jizhui.tsv", header = TRUE, sep = "\t", row.names = 1)
+data$sum <- rowSums(data)
+data1 <- data[order(data$sum, decreasing = TRUE), ]
+data1 <- data1[, -27]
+data1$Control <- apply(data1[, 1:9], 1, mean)
+data1$Ca_Tx1 <- apply(data1[, 10:18], 1, mean)
+data1$Ca_Tx2 <- apply(data1[, 19:26], 1, mean)
+data2 <- data1[, 27:29]
+row_sums <- rowSums(data2)
+top10_index <- order(row_sums, decreasing = TRUE)[1:10]
+data_top10 <- data2[top10_index, ]
+rel_abundance_op10 <- sweep(data_top10, 2, colSums(data2), FUN = "/")
+others_abundance <- 1 - colSums(rel_abundance_top10)
+data3 <- rbind(rel_abundance_top10, Others = others_abundance)
+data3 <- as.matrix(data3)
+print(row.names(data3))
+print(colnames(data3))
+print(apply(data3, 2, sum)) 
+chordDiagram(data3)
+library(ggsci)
+library(scales)
+mycolor = pal_d3("category20", alpha = 1)(20)
+mycolor
+cols = mycolor[c(1:8, 12, 13:14)]
+rownames(data1)
+grid.col = c(Control = '#EF9A9A', Ca_Tx1 = '#90CAF9', Ca_Tx2 = '#F3D32C',
+             Picornaviridae  = "#8DD3C7", Redondoviridae = "#BEBADA", Anelloviridae = '#009933',
+             Circoviridae  = "#FF7F00", Hepadnaviridae
+ = '#CC3366', Picobirnaviridae = '#c5c5f2',
+             Coronaviridae = "#FB8072", Genomoviridae = "#F781BF",  Astroviridae = "#80B1D3",
+             Flaviviridae = "#A65628", Others = "#A4566980")
+
+pdf(file = "circle.pdf", width = 10, height = 5.1)
+chordDiagram(data3, grid.col = grid.col, column.col = cols, directional = -1, transparency = 0.7)  
+legend.col = c(Picornaviridae  = "#8DD3C7", Redondoviridae = "#BEBADA", Anelloviridae = '#009933',
+             Circoviridae  = "#FF7F00", Hepadnaviridae
+ = '#CC3366', Picobirnaviridae = '#c5c5f2',
+             Coronaviridae = "#FB8072", Genomoviridae = "#F781BF",  Astroviridae = "#80B1D3",
+             Flaviviridae = "#A65628", Others = "#A4566980")
+legend(x = "topright", title = "Species", title.adj = 0,
+       bty = 'n',
+       legend = names(legend.col),  
+       pch = 16, 
+       col = legend.col,
+       cex = 1, pt.cex = 2,
+       ncol = 1, xpd = TRUE)
+dev.off()                               
+                              
